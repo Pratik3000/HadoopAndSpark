@@ -1,0 +1,50 @@
+m1--> NN
+m2--> SNN
+------------------
+
+m1 Goes down:
+m2--> $hdfs dfs -ls	(Times Out after some time)
+
+------
+Now to change the config for NN to run in place of SNN:
+1. Stop SNN since we dont want SNN to use its path and it does not hold a lock in its path
+	$cd usr/local/hadoop
+	$sbin/hadoop-daemon.sh stop secondarynamenode
+
+2. Go to /etc/hadoop and change the following prop in core-site.xml, for the data nodes on that machine to know that the NN is running here now (change on all the machines where datanodes are running)
+	fs.DefaultsFS = hdfs://m2:9000
+
+3. Go to hdfs-site.xml, (Since the NN was not running on this node it will not have the property <dfs.namenode.name.dir>) add the <dfs.namenode.name.dir> property and point it to where the SNN was storing is fsimage data
+
+	<property>
+	<name>dfs.namenode.name.dir</name>
+	<value>/org/snnfsi</value>
+	</property>
+
+edit the following prop
+
+	<property>
+	<name>dfs.namenode.http-address</name>
+	<value>m2:50070</value>
+	</property>
+
+	<property>
+	<name>dfs.namenode.secondary.http-address</name>
+	<value>m3:50090</value>
+	</property>
+
+delete or comment the following properties:
+	dfs.namenode.checkpoint.dir
+	dfs.namenode.checkpoint.edits.dir
+	dfs.namenode.checkpoint.period
+
+4. Now we want the fsimage and edits-in-progress both in the namenode directory path (i.e. in New dfs.namenode.name.dir=/org/snnfsi), so copy it from snnedits folder to snnfsi folder
+	cp -R /org/snnedits/current/* /org/snnfsi/current/
+
+5. Now we have all the metadata in the disk in the New Namenode path. But we can not access HDFS since we do not have the NN process started (check using jps) 
+Start the NN on m2
+	cd /usr/local/hadoop
+	sbin/hadoop-daemon.sh start namenode
+check>		hdfs dfs -ls
+similarly>	sbin/hadoop-daemon.sh stop datanode
+		sbin/hadoop-daemon.sh start datanode
